@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resilience4j / OpenFeign Demo Console</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2f3a;
+    --text: #e6e8ec;
+    --muted: #8b92a3;
+    --accent: #4f8cff;
+    --accent2: #7c5cff;
+    --ok: #3ddc84;
+    --warn: #ffb454;
+    --err: #ff5d5d;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) 1fr;
+    gap: 20px;
+    max-width: 1100px;
+  }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  input[type="number"], input[type="text"] {
+    width: 100%;
+    background: #0d0f14;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button {
+    width: 100%;
+    border: none;
+    border-radius: 6px;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: opacity 0.15s ease;
+  }
+  button:hover { opacity: 0.88; }
+  button:active { opacity: 0.7; }
+  #placeOrderBtn { background: var(--accent); color: white; }
+  #toggleBtn { background: var(--accent2); color: white; }
+  #clearBtn { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.on { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .dot.off { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .console {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    height: 560px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .entry { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px dashed var(--border); }
+  .entry:last-child { border-bottom: none; }
+  .entry-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; }
+  .badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .badge.ok { background: rgba(61,220,132,0.15); color: var(--ok); }
+  .badge.warn { background: rgba(255,180,84,0.15); color: var(--warn); }
+  .badge.err { background: rgba(255,93,93,0.15); color: var(--err); }
+  .ts { color: var(--muted); }
+  .elapsed { color: var(--accent); }
+  pre {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #c9cddb;
+  }
+  .empty { color: var(--muted); text-align: center; padding-top: 40px; }
+</style>
+</head>
+<body>
+
+  <h1>Resilience4j &middot; OpenFeign &middot; API Gateway Demo</h1>
+  <div class="subtitle">
+    Frontend &rarr; API Gateway (:8080) &rarr; Order Service (:8081) &rarr; Payment Service (:8082)
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Place Order</h2>
+      <label for="itemId">Item ID</label>
+      <input type="number" id="itemId" value="42" />
+
+      <label for="amount">Amount</label>
+      <input type="number" id="amount" value="149.99" step="0.01" />
+
+      <button id="placeOrderBtn">Place Order</button>
+
+      <h2 style="margin-top: 22px;">Fault Injection</h2>
+      <button id="toggleBtn">Toggle Payment Failure</button>
+      <div class="status-row">
+        <span class="dot off" id="statusDot"></span>
+        <span id="statusText">Failure mode unknown - toggle to check</span>
+      </div>
+
+      <button id="clearBtn" style="margin-top: 22px;">Clear Console</button>
+    </div>
+
+    <div class="panel">
+      <h2>Console</h2>
+      <div class="console" id="console">
+        <div class="empty">No requests yet. Try "Place Order".</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const GATEWAY_URL = 'http://localhost:8080';
+  const PAYMENT_SERVICE_URL = 'http://localhost:8082';
+
+  const consoleEl = document.getElementById('console');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+
+  function clearEmptyState() {
+    const empty = consoleEl.querySelector('.empty');
+    if (empty) empty.remove();
+  }
+
+  function badgeClassForStatus(httpStatus) {
+    if (httpStatus === null) return 'err';
+    if (httpStatus >= 200 && httpStatus < 300) return 'ok';
+    if (httpStatus >= 400 && httpStatus < 500) return 'warn';
+    return 'err';
+  }
+
+  function logEntry({ label, httpStatus, elapsedMs, body, error }) {
+    clearEmptyState();
+    const entry = document.createElement('div');
+    entry.className = 'entry';
+
+    const badgeClass = error ? 'err' : badgeClassForStatus(httpStatus);
+    const statusLabel = error ? 'NETWORK ERROR' : `HTTP ${httpStatus}`;
+
+    const head = document.createElement('div');
+    head.className = 'entry-head';
+    head.innerHTML = `
+      <span class="badge ${badgeClass}">${statusLabel}</span>
+      <span>${label}</span>
+      <span class="elapsed">${elapsedMs.toFixed(0)} ms</span>
+      <span class="ts">${new Date().toLocaleTimeString()}</span>
+    `;
+    entry.appendChild(head);
+
+    const pre = document.createElement('pre');
+    pre.textContent = error ? String(error) : JSON.stringify(body, null, 2);
+    entry.appendChild(pre);
+
+    consoleEl.prepend(entry);
+  }
+
+  async function timedFetch(url, options, label) {
+    const start = performance.now();
+    try {
+      const res = await fetch(url, options);
+      const elapsedMs = performance.now() - start;
+      let body;
+      try {
+        body = await res.json();
+      } catch (parseErr) {
+        body = { note: 'Non-JSON or empty response body' };
+      }
+      logEntry({ label, httpStatus: res.status, elapsedMs, body });
+      return { res, body };
+    } catch (err) {
+      const elapsedMs = performance.now() - start;
+      logEntry({ label, httpStatus: null, elapsedMs, error: err.message || err });
+      return { res: null, body: null };
+    }
+  }
+
+  document.getElementById('placeOrderBtn').addEventListener('click', async () => {
+    const itemId = Number(document.getElementById('itemId').value);
+    const amount = Number(document.getElementById('amount').value);
+
+    await timedFetch(
+      `${GATEWAY_URL}/orders`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, amount })
+      },
+      `POST /orders (via API Gateway)`
+    );
+  });
+
+  document.getElementById('toggleBtn').addEventListener('click', async () => {
+    const { body } = await timedFetch(
+      `${PAYMENT_SERVICE_URL}/payments/toggle-delay`,
+      { method: 'POST' },
+      `POST /payments/toggle-delay (direct to Payment Service)`
+    );
+
+    if (body && typeof body.failureModeEnabled === 'boolean') {
+      const on = body.failureModeEnabled;
+      statusDot.className = 'dot ' + (on ? 'on' : 'off');
+      statusText.textContent = on
+        ? 'Failure mode ON: payment calls stall 3s then throw'
+        : 'Failure mode OFF: payment calls respond instantly';
+    }
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    consoleEl.innerHTML = '<div class="empty">No requests yet. Try "Place Order".</div>';
+  });
+</script>
+</body>
+</html>
