@@ -89,5 +89,3 @@ Actuator endpoints on `order-service` (`http://localhost:8081/actuator/...`):
 cd order-service
 mvn test
 ```
-
-## Project layout
