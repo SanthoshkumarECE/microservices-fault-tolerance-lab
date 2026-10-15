@@ -46,7 +46,7 @@ public class PaymentController {
                 "failureModeEnabled", enabled,
                 "message", enabled
                         ? "Failure mode ON: /payments/{id} will now stall 3s then throw."
-                        : "Failure mode OFF: /payments/{id} responds instantly."
+                        : "Failure mode OFF: /payments/{id} responds   instantly."
         ));
     }
 }
